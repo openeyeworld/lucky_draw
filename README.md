@@ -1,7 +1,10 @@
 # lucky_draw
 这是一个用python编写的年会抽奖小程序
 # 从以下链接直接下载安装使用
-[下载](https://github.com/openeyeworld/lucky_draw/releases/download/V1.0/lucky_draw.exe)
+下载地址：
+```
+https://github.com/openeyeworld/lucky_draw/releases/download/V1.0/lucky_draw.exe
+```
 # 使用方法
 直接导入csv模板表格即可使用。
 模板链接：
