@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>2026年会抽奖系统 - 网页保底版</title>
+    <style>
+        :root {
+            --primary-red: #D32F2F;
+            --bg-light: #f5f5f5;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            height: 100%; font-family: "Microsoft YaHei", sans-serif;
+            overflow: hidden; background-color: var(--bg-light);
+        }
+
+        /* 主界面布局 */
+        #admin-panel {
+            display: flex; height: 100vh;
+        }
+
+        #controls {
+            width: 350px; background: #eee; padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1); z-index: 10;
+        }
+
+        #display-area {
+            flex: 1; padding: 40px; overflow-y: auto; background: white;
+        }
+
+        /* 配置项样式 */
+        .config-group {
+            background: white; padding: 15px; border-radius: 8px;
+            margin-bottom: 20px; border: 1px solid #ddd;
+        }
+
+        h3 { margin-top: 0; color: #333; border-bottom: 2px solid var(--primary-red); padding-bottom: 5px; }
+
+        label { display: block; margin: 10px 0 5px; font-size: 14px; color: #666; }
+
+        input, select, button {
+            width: 100%; padding: 10px; margin-bottom: 10px;
+            border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+        }
+
+        button {
+            cursor: pointer; font-weight: bold; transition: 0.3s;
+        }
+
+        .btn-primary { background: #2E7D32; color: white; border: none; font-size: 16px; height: 50px; }
+        .btn-primary:hover { background: #1B5E20; }
+        .btn-export { background: #1976D2; color: white; border: none; }
+
+        /* 中奖列表样式 */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: center; }
+        th { background: #f8f8f8; }
+
+        /* 全屏抽奖层 */
+        #lottery-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column; align-items: center;
+            justify-content: center; z-index: 100;
+        }
+
+        #prize-title { font-size: 40px; color: #999; margin-bottom: 50px; }
+        #rolling-name { font-size: 120px; font-weight: bold; text-align: center; margin: 40px 0; }
+        #hint-text { position: absolute; bottom: 50px; color: #888; font-size: 20px; }
+
+        /* 总结网格 */
+        #summary-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px; width: 80%; margin-top: 20px;
+        }
+        .summary-item {
+            font-size: 32px; text-align: center; padding: 15px; border: 2px solid; border-radius: 10px;
+        }
+
+        /* 奖项配色标签 */
+        .tag-特等奖 { background: #D32F2F !important; color: white; }
+        .tag-一等奖 { background: #F57C00 !important; color: white; }
+        .tag-二等奖 { background: #FFEB3B !important; color: black; }
+        .tag-三等奖 { background: #1976D2 !important; color: white; }
+    </style>
+</head>
+<body>
+
+<div id="admin-panel">
+    <div id="controls">
+        <h2>控制中心</h2>
+        
+        <div class="config-group">
+            <h3>1. 名单导入</h3>
+            <input type="file" id="csv-file" accept=".csv">
+            <div id="status-info" style="color: gray; font-size: 13px;">等待导入...</div>
+        </div>
+
+        <div class="config-group">
+            <h3>2. 抽奖配置</h3>
+            <label>当前奖项：</label>
+            <select id="prize-name">
+                <option value="特等奖">特等奖</option>
+                <option value="一等奖">一等奖</option>
+                <option value="二等奖">二等奖</option>
+                <option value="三等奖" selected>三等奖</option>
+            </select>
+
+            <label>抽取人数：</label>
+            <input type="number" id="draw-count" value="1" min="1">
+
+            <label>视觉配色：</label>
+            <select id="color-scheme">
+                <option value="classic">庆典红 (经典)</option>
+                <option value="gold">流沙金 (黑金)</option>
+                <option value="tech">极光蓝 (科技)</option>
+            </select>
+
+            <label style="display: flex; align-items: center;">
+                <input type="checkbox" id="allow-repeat" style="width: 20px; margin: 0 5px 0 0;"> 允许重复中奖
+            </label>
+        </div>
+
+        <button class="btn-primary" onclick="startLottery()">⚡ 开始全屏抽奖</button>
+        <button class="btn-export" onclick="exportCSV()" style="margin-top: 10px;">💾 导出结果</button>
+    </div>
+
+    <div id="display-area">
+        <h3>中奖记录汇总</h3>
+        <table id="winner-table">
+            <thead>
+                <tr>
+                    <th>序号</th>
+                    <th>奖项</th>
+                    <th>姓名</th>
+                </tr>
+            </thead>
+            <tbody id="winner-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="lottery-overlay">
+    <div id="prize-title">正在抽取：三等奖</div>
+    <div id="rolling-name">READY</div>
+    <div id="summary-grid" style="display: none;"></div>
+    <div id="hint-text">按 [空格键] 开始/停止</div>
+</div>
+
+<script>
+    let allAttendees = [];
+    let winnersData = []; // {prize: '', name: ''}
+    let currentPool = [];
+    let isRolling = false;
+    let rollTimer = null;
+    let currentRoundWinners = [];
+    let roundTarget = 0;
+
+    const schemes = {
+        classic: { text: "#E64A19", bg: "#FFFFFF" },
+        gold: { text: "#FFD700", bg: "#141414" },
+        tech: { text: "#00F2FF", bg: "#0A0F1E" }
+    };
+
+    // 1. 文件读取
+    document.getElementById('csv-file').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const text = event.target.result;
+            const rows = text.split(/\r?\n/).map(r => r.trim()).filter(r => r);
+            
+            // 重名检测
+            const counts = {};
+            rows.forEach(x => counts[x] = (counts[x] || 0) + 1);
+            const dups = Object.keys(counts).filter(x => counts[x] > 1);
+
+            if (dups.length > 0) {
+                if (confirm(`检测到 ${dups.length} 组重名（如：${dups[0]}）。是否自动去重？`)) {
+                    allAttendees = [...new Set(rows)];
+                } else {
+                    allAttendees = rows;
+                }
+            } else {
+                allAttendees = rows;
+            }
+            document.getElementById('status-info').innerText = `已就绪: ${allAttendees.length} 人`;
+            document.getElementById('status-info').style.color = 'green';
+        };
+        reader.readAsText(file);
+    });
+
+    // 2. 进入抽奖
+    function startLottery() {
+        if (allAttendees.length === 0) return alert("请先导入名单");
+        
+        roundTarget = parseInt(document.getElementById('draw-count').value);
+        const prize = document.getElementById('prize-name').value;
+        const allowRepeat = document.getElementById('allow-repeat').checked;
+
+        // 过滤奖池
+        const wonNames = winnersData.map(w => w.name);
+        currentPool = allowRepeat ? [...allAttendees] : allAttendees.filter(n => !wonNames.includes(n));
+
+        if (currentPool.length < roundTarget) return alert("奖池人数不足！");
+
+        // 视觉设置
+        const scheme = schemes[document.getElementById('color-scheme').value];
+        const overlay = document.getElementById('lottery-overlay');
+        overlay.style.backgroundColor = scheme.bg;
+        document.getElementById('rolling-name').style.color = scheme.text;
+        document.getElementById('prize-title').innerText = `正在抽取：${prize}`;
+        
+        overlay.style.display = 'flex';
+        currentRoundWinners = [];
+        showState("WAITING");
+    }
+
+    function showState(state) {
+        const nameEl = document.getElementById('rolling-name');
+        const gridEl = document.getElementById('summary-grid');
+        const hintEl = document.getElementById('hint-text');
+
+        if (state === "WAITING") {
+            nameEl.style.display = 'block';
+            gridEl.style.display = 'none';
+            nameEl.innerText = "READY";
+            hintEl.innerText = `本轮需抽取 ${roundTarget} 人 | 按 [空格] 开始`;
+        } else if (state === "SUMMARY") {
+            nameEl.style.display = 'none';
+            gridEl.style.display = 'grid';
+            hintEl.innerText = "抽取完成！按 [ESC] 返回后台";
+            renderSummary();
+        }
+    }
+
+    // 3. 核心滚动逻辑
+    window.addEventListener('keydown', function(e) {
+        const overlay = document.getElementById('lottery-overlay');
+        if (overlay.style.display === 'none') return;
+
+        if (e.code === 'Space') {
+            e.preventDefault();
+            if (currentRoundWinners.length >= roundTarget) {
+                showState("SUMMARY");
+                return;
+            }
+
+            if (!isRolling) {
+                // 开始滚动
+                isRolling = true;
+                rollTimer = setInterval(() => {
+                    const randomName = allAttendees[Math.floor(Math.random() * allAttendees.length)];
+                    document.getElementById('rolling-name').innerText = randomName;
+                }, 50);
+                document.getElementById('hint-text').innerText = "按 [空格] 停止";
+            } else {
+                // 停止并产生中奖者
+                isRolling = false;
+                clearInterval(rollTimer);
+                const winner = currentPool[Math.floor(Math.random() * currentPool.length)];
+                
+                // 记录数据
+                const prize = document.getElementById('prize-name').value;
+                currentRoundWinners.push(winner);
+                winnersData.push({ prize, name: winner });
+
+                // 从临时奖池移除（防止本轮内部重复）
+                const idx = currentPool.indexOf(winner);
+                if (idx > -1) currentPool.splice(idx, 1);
+
+                document.getElementById('rolling-name').innerText = winner;
+                const rem = roundTarget - currentRoundWinners.length;
+                document.getElementById('hint-text').innerText = rem > 0 ? `已抽中！剩余 ${rem} 人 | 按 [空格] 继续` : "本轮结束！按 [空格] 查看总结";
+                
+                updateMainTable();
+            }
+        }
+
+        if (e.code === 'Escape') {
+            overlay.style.display = 'none';
+            isRolling = false;
+            clearInterval(rollTimer);
+        }
+    });
+
+    function renderSummary() {
+        const grid = document.getElementById('summary-grid');
+        const prize = document.getElementById('prize-name').value;
+        const scheme = schemes[document.getElementById('color-scheme').value];
+        grid.innerHTML = currentRoundWinners.map(name => `
+            <div class="summary-item" style="color: ${scheme.text}; border-color: ${scheme.text}">${name}</div>
+        `).join('');
+    }
+
+    function updateMainTable() {
+        const tbody = document.getElementById('winner-body');
+        tbody.innerHTML = winnersData.map((w, i) => `
+            <tr class="tag-${w.prize}">
+                <td>${(i+1).toString().padStart(3, '0')}</td>
+                <td>${w.prize}</td>
+                <td>${w.name}</td>
+            </tr>
+        `).join('');
+    }
+
+    function exportCSV() {
+        if (winnersData.length === 0) return;
+        let csvContent = "data:text/csv;charset=utf-8,\ufeff序号,奖项,姓名\n";
+        winnersData.forEach((w, i) => {
+            csvContent += `${i+1},${w.prize},${w.name}\n`;
+        });
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "中奖名单_保底版.csv");
+        document.body.appendChild(link);
+        link.click();
+    }
+</script>
+
+</body>
+</html>
