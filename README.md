@@ -14,7 +14,7 @@ https://github.com/openeyeworld/lucky_draw/blob/main/dist/%E6%8A%BD%E5%A5%96%E5%
 # 预览
 ![预览](https://github.com/openeyeworld/lucky_draw/blob/main/preview.png)
 ---
-
+![预览](https://github.com/openeyeworld/lucky_draw/blob/main/%E5%8A%A8%E7%94%BB.gif)
 ![预览](https://github.com/openeyeworld/lucky_draw/blob/main/%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE%202026-10-10%20131631.png)
 ---
 
