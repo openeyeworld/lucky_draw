@@ -11,3 +11,5 @@ https://github.com/openeyeworld/lucky_draw/releases/download/V1.0/lucky_draw.exe
 ```
 https://github.com/openeyeworld/lucky_draw/blob/main/dist/%E6%8A%BD%E5%A5%96%E5%90%8D%E5%8D%95.csv
 ```
+# 预览
+![预览](https://github.com/openeyeworld/lucky_draw/blob/main/preview.png)
